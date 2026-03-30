@@ -1,4 +1,4 @@
-package models
+package model
 
 type Doctor struct {
 	ID             string `json:"id"`
