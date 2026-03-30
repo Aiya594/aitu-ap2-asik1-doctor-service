@@ -1,8 +1,8 @@
 package model
 
 type Doctor struct {
-	ID             string `json:"id"`
-	Email          string `json:"email"`
-	FullName       string `json:"full_name"`
-	Specialization string `json:"specialization"`
+	ID             string
+	Email          string
+	FullName       string
+	Specialization string
 }

@@ -10,7 +10,7 @@ type DoctorRepository interface {
 	Create(doctor *model.Doctor) error
 	GetByID(id string) (*model.Doctor, error)
 	List() ([]*model.Doctor, error)
-	ExistsByEmail(email string) (bool, error)
+	ExistsByEmail(email string) bool
 }
 
 type InMemoryDoctorRepository struct {
@@ -28,10 +28,6 @@ func (i *InMemoryDoctorRepository) Create(doctor *model.Doctor) error {
 
 	i.mu.Lock()
 	defer i.mu.Unlock()
-
-	if _, exists := i.doctors[doctor.ID]; exists {
-		return ErrAlreadyExists
-	}
 
 	i.doctors[doctor.ID] = doctor
 
@@ -59,15 +55,15 @@ func (i *InMemoryDoctorRepository) List() ([]*model.Doctor, error) {
 	return docs, nil
 }
 
-func (i *InMemoryDoctorRepository) ExistsByEmail(email string) (bool, error) {
+func (i *InMemoryDoctorRepository) ExistsByEmail(email string) bool {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	for _, d := range i.doctors {
 		if d.Email == email {
-			return true, nil
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
