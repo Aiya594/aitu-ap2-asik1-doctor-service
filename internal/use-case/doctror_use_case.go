@@ -15,12 +15,24 @@ import (
 //  email is required.
 //  email must be unique across all doctors.
 
-type DoctorUsecase struct {
+type DocUseCase interface {
+	CreateDoc(fullName, email, specialization string) error
+	GetDocbyID(id string) (*model.Doctor, error)
+	ListDoctors() ([]*model.Doctor, error)
+}
+
+type DoctorUsecaseImpl struct {
 	repo   repository.DoctorRepository
 	logger *slog.Logger
 }
 
-func (d *DoctorUsecase) CreateDoc(fullName, email, specialization string) error {
+func NewDoctorUseCase(repo repository.DoctorRepository, logger *slog.Logger) DocUseCase {
+	return &DoctorUsecaseImpl{
+		repo: repo, logger: logger,
+	}
+}
+
+func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) error {
 
 	//validation
 	fullName = strings.TrimSpace(fullName)
@@ -72,7 +84,7 @@ func (d *DoctorUsecase) CreateDoc(fullName, email, specialization string) error 
 
 }
 
-func (d *DoctorUsecase) GetDocbyID(id string) (*model.Doctor, error) {
+func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {
 	id = strings.TrimSpace(id)
 
 	if id == "" {
@@ -96,7 +108,7 @@ func (d *DoctorUsecase) GetDocbyID(id string) (*model.Doctor, error) {
 
 }
 
-func (d *DoctorUsecase) ListDoctors() ([]*model.Doctor, error) {
+func (d *DoctorUsecaseImpl) ListDoctors() ([]*model.Doctor, error) {
 	doctors, err := d.repo.List()
 	if err != nil {
 		d.logger.Error("failed to list doctors",
