@@ -48,7 +48,7 @@ func (i *InMemoryDoctorRepository) GetByID(id string) (*model.Doctor, error) {
 func (i *InMemoryDoctorRepository) List() ([]*model.Doctor, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	docs := make([]*model.Doctor, len(i.doctors))
+	docs := make([]*model.Doctor, 0, len(i.doctors))
 	for _, d := range i.doctors {
 		docs = append(docs, d)
 	}

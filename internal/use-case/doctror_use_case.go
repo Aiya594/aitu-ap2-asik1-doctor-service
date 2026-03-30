@@ -56,7 +56,7 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) er
 			"error", ErrAlreadyExists,
 			"email", email)
 
-		return fmt.Errorf("could not create a doctor:%w", ErrAlreadyExists)
+		return ErrAlreadyExists
 	}
 
 	id := uuid.New().String()
@@ -92,7 +92,7 @@ func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {
 			"error", ErrInvalidFields,
 			"id", id)
 
-		return nil, fmt.Errorf("id is required: %w", ErrInvalidFields)
+		return nil, ErrInvalidFields
 	}
 
 	doctor, err := d.repo.GetByID(id)
