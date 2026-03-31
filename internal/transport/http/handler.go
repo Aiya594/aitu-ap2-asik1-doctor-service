@@ -41,7 +41,8 @@ func (h *DocHandler) CreateDoctor(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.us.CreateDoc(doc.FullName, doc.Email, doc.Specialization); err != nil {
+	id, err := h.us.CreateDoc(doc.FullName, doc.Email, doc.Specialization)
+	if err != nil {
 		ctx.JSON(parseError(err), gin.H{
 			"message": "failed to create doctor",
 			"error":   err.Error(),
@@ -50,7 +51,8 @@ func (h *DocHandler) CreateDoctor(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, gin.H{
-		"message": "doctor created",
+		"message":   "doctor created",
+		"doctor_id": id,
 	})
 }
 
@@ -78,8 +80,6 @@ func (h *DocHandler) GetAll(ctx *gin.Context) {
 		})
 		return
 	}
-
-	
 
 	ctx.JSON(http.StatusOK, doctors)
 }

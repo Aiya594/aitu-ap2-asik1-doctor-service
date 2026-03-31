@@ -16,7 +16,7 @@ import (
 //  email must be unique across all doctors.
 
 type DocUseCase interface {
-	CreateDoc(fullName, email, specialization string) error
+	CreateDoc(fullName, email, specialization string) (string, error)
 	GetDocbyID(id string) (*model.Doctor, error)
 	ListDoctors() ([]*model.Doctor, error)
 }
@@ -32,7 +32,7 @@ func NewDoctorUseCase(repo repository.DoctorRepository, logger *slog.Logger) Doc
 	}
 }
 
-func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) error {
+func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (string, error) {
 
 	//validation
 	fullName = strings.TrimSpace(fullName)
@@ -46,7 +46,7 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) er
 			"email", email,
 			"specialization", specialization)
 
-		return fmt.Errorf("full name, email and specialization are required:%w", ErrInvalidFields)
+		return "", fmt.Errorf("full name, email and specialization are required:%w", ErrInvalidFields)
 	}
 
 	exists := d.repo.ExistsByEmail(email)
@@ -56,7 +56,7 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) er
 			"error", ErrAlreadyExists,
 			"email", email)
 
-		return ErrAlreadyExists
+		return "", ErrAlreadyExists
 	}
 
 	id := uuid.New().String()
@@ -76,11 +76,11 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) er
 			"full_name", doctor.FullName,
 			"email", doctor.Email,
 			"specialization", doctor.Specialization)
-		return err
+		return id, err
 	}
 	d.logger.Info("doctor created succesfully")
 
-	return nil
+	return id, nil
 
 }
 
