@@ -16,5 +16,8 @@ func main() {
 	}
 	port := os.Getenv("PORT")
 	app := app.NewApp()
-	app.RunServer(port)
+	err = app.RunServer(port)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
