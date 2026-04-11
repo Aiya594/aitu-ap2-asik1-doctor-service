@@ -1,76 +1,133 @@
-# doctor-service
+# Doctor Service - gRPC Medical Scheduling Platform
+
+## 1. Project Overview
+
+The Doctor Service is the authoritative source for doctor data in a microservices-based Medical Scheduling Platform that uses **gRPC** for all inter-service and client-to-service communication. This service manages the complete lifecycle of doctors in the system and is called by the Appointment Service to validate doctor existence before creating or updating appointments.
+
+The Doctor Service:
+- Owns all doctor data and retrieval logic
+- Enforces email uniqueness constraint
+- Validates all required fields (full_name, email)
+- Exposes gRPC RPCs for CRUD operations
+- Maintains Clean Architecture principles
+- Located in `../aitu-ap2-asik1-doctor-service/` (separate folder from Appointment Service)
+
+**Key Role:** Acts as a gRPC dependency for the Appointment Service; called during appointment creation/update to verify doctor existence.
+
+---
+
+## 2. Scope and Constraints
+
+### What Changes
+
+- **All HTTP/REST endpoints are replaced with gRPC endpoints**
+  - Gin HTTP server replaced with gRPC server
+  - `transport/http/` replaced with `transport/grpc/`
+
+- **Service exposes a gRPC server**
+  - Listens on port 50051 for gRPC connections
+  - No REST functionality
+
+- **Protocol Buffers define the service contract**
+  - `.proto` file committed to the repository
+  - Generated Go stubs (`*pb.go`, `*_grpc.pb.go`) committed alongside
 
 
-## Project Overview
+---
 
-The Doctor Service manages doctor data. It acts as a source of truth for doctors in the system.
+## 3. Architecture Overview
 
-## Purpose
+### Service Responsibilities
 
-This service may be used to encapsulate doctor-related data and support other services ([Appointment Service](https://github.com/Aiya594/aitu-ap2-asik1-appointment-service) )
+**Doctor Service:**
+- CRUD operations on doctor data via gRPC
+- Enforces email uniqueness constraint
+- Validates required fields (full_name, email)
+- Called by Appointment Service via gRPC client
+- No external service dependencies
 
-It is structured separately to enforce data ownership, enable independent scaling, avoid cross-service coupling.
+### Project Structure
 
-## Service Responsibilities
-
-The Doctor Service owns:
-- Doctor data storage
-- Doctor retrieval
-- Doctor existence validation
-
-Typical operations:
-- Add a new doctor
-- Get doctor by ID
-- List doctors
-
-## Folder Structure 
-
-(example — similar structure expected)
 ```
-internal/
-├── transport/http/ -> HTTP handlers
-├── use-case/       -> Business logic
-├── repository/     -> Storage layer
-├── model/          -> Domain models
-├── app/            -> Server management
+aitu-ap2-asik1-doctor-service/
+├── main.go                         # Entry point
+├── go.mod / go.sum
+├── proto/                          # Protocol Buffer definitions
+│   ├── doctor.proto                # Doctor service contract
+│   ├── doctor.pb.go                # Generated stubs (committed)
+│   └── doctor_grpc.pb.go           # Generated gRPC stubs (committed)
+├── internal/
+│   ├── model/
+│   │   └── doctor.go               # Domain model (unchanged from A1)
+│   ├── repository/
+│   │   ├── repository.go           # Storage interface
+│   │   └── errors.go               # Repository errors
+│   ├── use-case/
+│   │   ├── doctror_use_case.go     # Business logic (unchanged from A1)
+│   │   └── errors.go               # Use-case errors
+│   ├── transport/
+│   │   ├── grpc/
+│   │   │   └── server.go           # gRPC server handlers (REPLACES http/)
+│   │   └── http/                   # REMOVED (replaced by grpc/)
+│   └── app/
+│       └── app.go                  # Application setup (gRPC server instead of Gin)
+└── README.md                       # This file
 ```
 
-## Dependency Flow
+### Dependency Flow (Clean Architecture)
 
 ```
-Handler -> UseCase -> Repository
+gRPC Handler
+    ↓
+UseCase (Business Logic)
+    ↓
+Repository (In-Memory Storage)
 ```
 
-No external dependencies.
+**Rules:**
+- gRPC handler unmarshal proto messages, calls use case, returns proto responses
+- Use case contains all business logic; imports NO protobuf types
+- Repository handles storage only
+- Mapping between proto messages and domain models happens ONLY in the gRPC layer
 
-# How to Run
-1. Set environment variables as given in ```.env.example```
 
-2. Run service
+
+---
+
+## 6. Installing and Regenerating Proto Stubs
+
+### Prerequisites
+
+1. **Install protoc** (Protocol Buffer Compiler)
+   - Windows: Download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases) and add to PATH
+
+2. **Install Go gRPC plugins**
+   ```bash
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+   ```
+
+### Regenerate Stubs
+
+From the `aitu-ap2-asik1-doctor-service/` directory:
+
+```bash
+protoc --go_out=. --go-grpc_out=. proto/doctor.proto
 ```
+
+
+---
+
+## 7. Running the Doctor Service
+
+
+### Startup
+
+```bash
+cd aitu-ap2-asik1-doctor-service
 go run main.go
 ```
 
-3. Test endpoint
-- ```POST /doctors``` - add a doctor too storage
-```
-Example:
-{
-    "full_name":"Test Doctor",
-    "email":"doctor@example.com",
-    "specialization":"surgery",
-}
-```
+**gRPC Port:** `localhost:50051`
 
-- ```GET /doctors/{id}``` - return a doctor by ID
-
-- ```GET /doctors``` - returns all doctors in storage
-
-
-## Why No Shared Database?
-
-The Doctor Service owns all doctor data.
-
-Other services must not access its database and only use its API instead
-
-This ensures strict boundaries, independent evolution and safe data management
+The service should be started **before** the Appointment Service because Appointment Service will connect to it during startup or on first request.
