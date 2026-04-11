@@ -2,16 +2,19 @@ package app
 
 import (
 	"log/slog"
+	"net"
 	"os"
 
 	"github.com/Aiya594/doctor-service/internal/repository"
-	httpdoc "github.com/Aiya594/doctor-service/internal/transport/http"
+	grpcDoc "github.com/Aiya594/doctor-service/internal/transport/grpc"
 	usecase "github.com/Aiya594/doctor-service/internal/use-case"
-	"github.com/gin-gonic/gin"
+	"github.com/Aiya594/doctor-service/proto"
+	"google.golang.org/grpc"
 )
 
 type App struct {
-	router *gin.Engine
+	grpcSrev *grpc.Server
+	logger   *slog.Logger
 }
 
 func NewApp() *App {
@@ -21,16 +24,29 @@ func NewApp() *App {
 
 	usecase := usecase.NewDoctorUseCase(repo, logger)
 
-	handler := httpdoc.NewDocHandler(usecase)
+	handler := grpcDoc.NewDoctorServer(usecase, logger)
 
-	r := gin.Default()
+	grpcServer := grpc.NewServer()
 
-	httpdoc.RegisterRoutes(r, handler)
+	proto.RegisterDoctorServiceServer(grpcServer, handler)
 
-	return &App{router: r}
+	return &App{grpcSrev: grpcServer, logger: logger}
 }
 
-func (a *App) RunServer(port string) {
+func (a *App) RunServer(port string) error {
 
-	a.router.Run(":" + port)
+	lis, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return err
+	}
+
+	err = a.grpcSrev.Serve(lis)
+	if err != nil {
+		return err
+	}
+
+	a.logger.Info("gRPC server started", "port", port)
+
+	return nil
+
 }
