@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/Aiya594/doctor-service/internal/repository"
 	usecase "github.com/Aiya594/doctor-service/internal/use-case"
 	"github.com/Aiya594/doctor-service/proto"
 	"google.golang.org/grpc/codes"
@@ -30,12 +29,8 @@ func (s *DoctorGRPCServer) CreateDoctor(ctx context.Context, req *proto.CreateDo
 	)
 	if err != nil {
 		s.logger.Error("CreateDoctor failed", "error", err)
-		if errors.Is(usecase.ErrAlreadyExists, err) {
-			return nil, status.Error(codes.AlreadyExists, "doctor already exists")
-		} else if errors.Is(usecase.ErrInvalidFields, err) {
-			return nil, status.Error(codes.InvalidArgument, "invalid fields")
-		}
-		return nil, status.Error(codes.Internal, "failed to create doctor")
+
+		return nil, mapDoctorError(err)
 	}
 
 	return &proto.DoctorResponse{
@@ -50,12 +45,8 @@ func (s *DoctorGRPCServer) GetDoctor(ctx context.Context, req *proto.GetDoctorRe
 	doc, err := s.svc.GetDocbyID(req.GetId())
 	if err != nil {
 		s.logger.Error("GetDoctor failed", "error", err)
-		if errors.Is(repository.ErrNotFound, err) {
-			return nil, status.Error(codes.NotFound, "doctor not found")
-		} else if errors.Is(usecase.ErrInvalidFields, err) {
-			return nil, status.Error(codes.InvalidArgument, "empty id")
-		}
-		return nil, status.Error(codes.Internal, "internal error")
+
+		return nil, mapDoctorError(err)
 	}
 
 	return &proto.DoctorResponse{
@@ -70,7 +61,7 @@ func (s *DoctorGRPCServer) ListDoctors(ctx context.Context, req *proto.ListDocto
 	docs, err := s.svc.ListDoctors()
 	if err != nil {
 		s.logger.Error("ListDoctors failed", "error", err)
-		return nil, status.Error(codes.Internal, "failed to list doctors")
+		return nil, mapDoctorError(err)
 	}
 
 	result := make([]*proto.DoctorResponse, 0, len(docs))
@@ -87,4 +78,24 @@ func (s *DoctorGRPCServer) ListDoctors(ctx context.Context, req *proto.ListDocto
 	return &proto.ListDoctorsResponse{
 		Doctors: result,
 	}, nil
+}
+
+func mapDoctorError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	switch {
+	case errors.Is(err, usecase.ErrAlreadyExists):
+		return status.Error(codes.AlreadyExists, "doctor already exists")
+
+	case errors.Is(err, usecase.ErrNotFound):
+		return status.Error(codes.NotFound, "doctor not found")
+
+	case errors.Is(err, usecase.ErrInvalidFields):
+		return status.Error(codes.InvalidArgument, "invalid input")
+
+	default:
+		return status.Error(codes.Internal, "internal error")
+	}
 }

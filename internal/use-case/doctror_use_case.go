@@ -101,7 +101,7 @@ func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {
 			"error", err,
 			"id", id)
 
-		return nil, err
+		return nil, ErrNotFound
 	}
 
 	return doctor, nil
