@@ -2,8 +2,10 @@ package grpcDoc
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
+	"github.com/Aiya594/doctor-service/internal/repository"
 	usecase "github.com/Aiya594/doctor-service/internal/use-case"
 	"github.com/Aiya594/doctor-service/proto"
 	"google.golang.org/grpc/codes"
@@ -28,6 +30,11 @@ func (s *DoctorGRPCServer) CreateDoctor(ctx context.Context, req *proto.CreateDo
 	)
 	if err != nil {
 		s.logger.Error("CreateDoctor failed", "error", err)
+		if errors.Is(usecase.ErrAlreadyExists, err) {
+			return nil, status.Error(codes.AlreadyExists, "doctor already exists")
+		} else if errors.Is(usecase.ErrInvalidFields, err) {
+			return nil, status.Error(codes.InvalidArgument, "invalid fields")
+		}
 		return nil, status.Error(codes.Internal, "failed to create doctor")
 	}
 
@@ -43,7 +50,12 @@ func (s *DoctorGRPCServer) GetDoctor(ctx context.Context, req *proto.GetDoctorRe
 	doc, err := s.svc.GetDocbyID(req.GetId())
 	if err != nil {
 		s.logger.Error("GetDoctor failed", "error", err)
-		return nil, status.Error(codes.NotFound, "doctor not found")
+		if errors.Is(repository.ErrNotFound, err) {
+			return nil, status.Error(codes.NotFound, "doctor not found")
+		} else if errors.Is(usecase.ErrInvalidFields, err) {
+			return nil, status.Error(codes.InvalidArgument, "empty id")
+		}
+		return nil, status.Error(codes.Internal, "internal error")
 	}
 
 	return &proto.DoctorResponse{
