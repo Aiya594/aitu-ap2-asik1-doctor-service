@@ -8,18 +8,20 @@ import (
 	"time"
 )
 
-type ConfigDB struct {
+type Config struct {
 	ConnStrDB string
+	NatsURL   string
 }
 
-func NewConfig() *ConfigDB {
+func NewConfig() *Config {
 
-	return &ConfigDB{
+	return &Config{
 		ConnStrDB: os.Getenv("DATABASE_URL"),
+		NatsURL:   os.Getenv("NATS_URL"),
 	}
 }
 
-func (c *ConfigDB) Connect() (*sql.DB, error) {
+func (c *Config) ConnectDB() (*sql.DB, error) {
 	db, err := sql.Open("postgres", c.ConnStrDB)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting to database: %v", err)

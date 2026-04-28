@@ -1,11 +1,13 @@
 package usecase
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	natspub "github.com/Aiya594/doctor-service/internal/event"
 	"github.com/Aiya594/doctor-service/internal/model"
 	"github.com/Aiya594/doctor-service/internal/repository"
 	"github.com/google/uuid"
@@ -23,18 +25,18 @@ type DocUseCase interface {
 }
 
 type DoctorUsecaseImpl struct {
-	repo   repository.DoctorRepository
-	logger *slog.Logger
+	repo      repository.DoctorRepository
+	publisher natspub.EventPublisher
+	logger    *slog.Logger
 }
 
-func NewDoctorUseCase(repo repository.DoctorRepository, logger *slog.Logger) DocUseCase {
+func NewDoctorUseCase(repo repository.DoctorRepository, logger *slog.Logger, pub natspub.EventPublisher) DocUseCase {
 	return &DoctorUsecaseImpl{
-		repo: repo, logger: logger,
+		repo: repo, logger: logger, publisher: pub,
 	}
 }
 
 func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (string, error) {
-
 	//validation
 	fullName = strings.TrimSpace(fullName)
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -82,6 +84,41 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 		return id, err
 	}
 	d.logger.Info("doctor created succesfully")
+
+	event := map[string]interface{}{
+		"event_type":     model.DoctorCreated,
+		"occurred_at":    createdAt.UTC().Format(time.RFC3339),
+		"id":             doctor.ID,
+		"full_name":      doctor.FullName,
+		"specialization": doctor.Specialization,
+		"email":          doctor.Email,
+	}
+
+	//event publishing
+	data, err := json.Marshal(event)
+	if err != nil {
+		d.logger.Error("couldnt marshal event",
+			"error", err,
+			"event_type", model.DoctorCreated,
+			"ID", doctor.ID,
+			"full_name", doctor.FullName,
+			"email", doctor.Email,
+			"specialization", doctor.Specialization)
+		return id, err
+	}
+	err = d.publisher.Publish(model.DoctorCreated, data)
+	if err != nil {
+		d.logger.Error("couldnt publish event",
+			"error", err,
+			"event_type", model.DoctorCreated,
+			"ID", doctor.ID,
+			"full_name", doctor.FullName,
+			"email", doctor.Email,
+			"specialization", doctor.Specialization)
+		return id, err
+	}
+
+	d.logger.Info("event published succesfully")
 
 	return id, nil
 
