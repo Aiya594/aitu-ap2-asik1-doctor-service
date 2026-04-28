@@ -85,13 +85,15 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 	}
 	d.logger.Info("doctor created succesfully")
 
-	event := map[string]interface{}{
-		"event_type":     model.DoctorCreated,
-		"occurred_at":    createdAt.UTC().Format(time.RFC3339),
-		"id":             doctor.ID,
-		"full_name":      doctor.FullName,
-		"specialization": doctor.Specialization,
-		"email":          doctor.Email,
+	eventType := model.DoctorCreatedEventName
+
+	event := model.DoctorCreated{
+		EventType:      eventType,
+		OccurredAt:     createdAt,
+		ID:             id,
+		Full_name:      fullName,
+		Specialization: specialization,
+		Email:          email,
 	}
 
 	//event publishing
@@ -99,18 +101,19 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 	if err != nil {
 		d.logger.Error("couldnt marshal event",
 			"error", err,
-			"event_type", model.DoctorCreated,
+			"event_type", eventType,
 			"ID", doctor.ID,
 			"full_name", doctor.FullName,
 			"email", doctor.Email,
 			"specialization", doctor.Specialization)
 		return id, err
 	}
-	err = d.publisher.Publish(model.DoctorCreated, data)
+
+	err = d.publisher.Publish(eventType, data)
 	if err != nil {
 		d.logger.Error("couldnt publish event",
 			"error", err,
-			"event_type", model.DoctorCreated,
+			"event_type", eventType,
 			"ID", doctor.ID,
 			"full_name", doctor.FullName,
 			"email", doctor.Email,
@@ -121,7 +124,6 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 	d.logger.Info("event published succesfully")
 
 	return id, nil
-
 }
 
 func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {

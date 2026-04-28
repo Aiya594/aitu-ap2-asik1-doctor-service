@@ -1,5 +1,5 @@
 package model
 
 const (
-	DoctorCreated string = "doctors.created"
+	DoctorCreatedEventName = "doctors.created"
 )
