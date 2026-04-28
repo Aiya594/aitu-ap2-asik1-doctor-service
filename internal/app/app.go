@@ -1,10 +1,12 @@
 package app
 
 import (
+	"log"
 	"log/slog"
 	"net"
 	"os"
 
+	"github.com/Aiya594/doctor-service/internal/config"
 	"github.com/Aiya594/doctor-service/internal/repository"
 	grpcDoc "github.com/Aiya594/doctor-service/internal/transport/grpc"
 	usecase "github.com/Aiya594/doctor-service/internal/use-case"
@@ -18,9 +20,16 @@ type App struct {
 }
 
 func NewApp() *App {
-	repo := repository.NewDocRepo()
-
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+
+	cfg := config.NewConfig()
+
+	db, err := cfg.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	repo := repository.NewDoctorRepository(db)
 
 	usecase := usecase.NewDoctorUseCase(repo, logger)
 

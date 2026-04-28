@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/Aiya594/doctor-service/internal/model"
 	"github.com/Aiya594/doctor-service/internal/repository"
@@ -68,7 +69,9 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 		Specialization: specialization,
 	}
 
-	err := d.repo.Create(doctor)
+	createdAt := time.Now()
+
+	err := d.repo.Create(doctor, createdAt)
 	if err != nil {
 		d.logger.Error("couldnt create a doctor",
 			"error", err,
