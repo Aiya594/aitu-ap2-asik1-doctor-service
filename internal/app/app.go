@@ -28,10 +28,11 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
-	runMigrations()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	cfg := config.NewConfig()
+
+	runMigrations(cfg.ConnStrDB)
 
 	db, err := cfg.ConnectDB()
 	if err != nil {
@@ -77,10 +78,9 @@ func (a *App) Stop() {
 	a.grpcServ.GracefulStop()
 }
 
-func runMigrations() {
-	dbURL := os.Getenv("DATABASE_URL")
+func runMigrations(dbURL string) {
 	if dbURL == "" {
-		log.Fatal("DATABASE_URL is not set")
+		log.Fatal("DOC_DATABASE_URL is not set")
 	}
 
 	m, err := migrate.New(
