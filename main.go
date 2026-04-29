@@ -18,7 +18,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}
-	port := os.Getenv("PORT")
+	port := os.Getenv("DOC_PORT")
 	app, err := app.NewApp()
 	if err != nil {
 		log.Fatal(err)
