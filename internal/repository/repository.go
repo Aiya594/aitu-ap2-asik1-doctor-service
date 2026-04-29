@@ -53,7 +53,7 @@ func (r *PostgresDoctorRepository) Create(doctor *model.Doctor, created_at time.
 }
 func (r *PostgresDoctorRepository) GetByID(id string) (*model.Doctor, error) {
 	query := `
-		SELECT id, full_name, specialization, email, created_at
+		SELECT id, full_name, specialization, email
 		FROM doctors
 		WHERE id = $1
 	`
@@ -79,7 +79,7 @@ func (r *PostgresDoctorRepository) GetByID(id string) (*model.Doctor, error) {
 
 func (r *PostgresDoctorRepository) List() ([]*model.Doctor, error) {
 	query := `
-		SELECT id, full_name, specialization, email, created_at
+		SELECT id, full_name, specialization, email
 		FROM doctors
 	`
 

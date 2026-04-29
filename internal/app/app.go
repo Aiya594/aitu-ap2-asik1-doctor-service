@@ -1,6 +1,7 @@
 package app
 
 import (
+	"database/sql"
 	"log"
 	"log/slog"
 	"net"
@@ -20,55 +21,60 @@ import (
 )
 
 type App struct {
-	grpcSrev *grpc.Server
+	grpcServ *grpc.Server
 	logger   *slog.Logger
+	pub      *natspub.Publisher
+	db       *sql.DB
 }
 
-func NewApp() *App {
+func NewApp() (*App, error) {
 	runMigrations()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	cfg := config.NewConfig()
 
 	db, err := cfg.ConnectDB()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	publisher, err := natspub.NewPublisher(cfg.NatsURL)
 	if err != nil {
-		log.Fatal("failed to connect to NATS:", err)
+		return nil, err
 	}
 
 	repo := repository.NewDoctorRepository(db)
-
-	usecase := usecase.NewDoctorUseCase(repo, logger, publisher)
-
-	handler := grpcDoc.NewDoctorServer(usecase, logger)
+	uc := usecase.NewDoctorUseCase(repo, logger, publisher)
+	handler := grpcDoc.NewDoctorServer(uc, logger)
 
 	grpcServer := grpc.NewServer()
-
 	proto.RegisterDoctorServiceServer(grpcServer, handler)
 
-	return &App{grpcSrev: grpcServer, logger: logger}
+	return &App{
+		grpcServ: grpcServer,
+		logger:   logger,
+		pub:      publisher,
+		db:       db,
+	}, nil
 }
 
 func (a *App) RunServer(port string) error {
-
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		return err
 	}
 
-	err = a.grpcSrev.Serve(lis)
-	if err != nil {
-		return err
-	}
+	a.logger.Info("gRPC server starting", "port", port)
+	return a.grpcServ.Serve(lis)
+}
 
-	a.logger.Info("gRPC server started", "port", port)
+func (a *App) Close() {
+	a.pub.Close()
+	a.db.Close()
+}
 
-	return nil
-
+func (a *App) Stop() {
+	a.grpcServ.GracefulStop()
 }
 
 func runMigrations() {
