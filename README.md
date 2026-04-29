@@ -12,30 +12,36 @@ The Doctor Service:
 - Maintains Clean Architecture principles
 - Located in `../aitu-ap2-asik1-doctor-service/` (separate folder from Appointment Service)
 
+UPD:
+- **In-memory storage replaced** with a PostgreSQL-backed repository (`internal/repository/repository.go`).
+- **Schema managed via migrations** — no DDL in application code; `golang-migrate` runs `migrations/` automatically on startup.
+- **NATS publisher added** — after every successful `CreateDoctor`, the service publishes a `doctors.created` event to NATS Core Pub/Sub.
+- The publisher is injected behind the `EventPublisher` interface, so broker failures never block the gRPC response.
+
 **Key Role:** Acts as a gRPC dependency for the Appointment Service; called during appointment creation/update to verify doctor existence.
 
 ---
 
-## 2. Scope and Constraints
-
-### What Changes
-
-- **All HTTP/REST endpoints are replaced with gRPC endpoints**
-  - Gin HTTP server replaced with gRPC server
-  - `transport/http/` replaced with `transport/grpc/`
-
-- **Service exposes a gRPC server**
-  - Listens on port 50051 for gRPC connections
-  - No REST functionality
-
-- **Protocol Buffers define the service contract**
-  - `.proto` file committed to the repository
-  - Generated Go stubs (`*pb.go`, `*_grpc.pb.go`) committed alongside
-
-
 ---
 
-## 3. Architecture Overview
+## Architecture
+ 
+```
+gRPC client
+     │  CreateDoctor / GetDoctor / ListDoctors
+     ▼
+transport/grpc  (thin handler, maps errors to gRPC status codes)
+     │
+     ▼
+use-case        (business rules, validation, UUID generation)
+     │
+     ├──► repository  (PostgreSQL via database/sql + lib/pq)
+     │
+     └──► event.Publisher  (NATS Core, fire-and-forget)
+```
+ 
+---
+ 
 
 ### Service Responsibilities
 
@@ -46,88 +52,76 @@ The Doctor Service:
 - Called by Appointment Service via gRPC client
 - No external service dependencies
 
-### Project Structure
+---
 
+## Start Instruction
+
+Pull  [Notification Service](https://github.com/Aiya594/aitu-ap2-asik3-notification-service) and [Appointment Service](https://github.com/Aiya594/aitu-ap2-asik1-appointment-service) in the same folder with notification folder. Create `docker-compose.yml` according to  `docker-compose.example.yml` and then:
+
+```bash
+docker-compose up -d --build
 ```
-aitu-ap2-asik1-doctor-service/
-├── main.go                         # Entry point
-├── go.mod / go.sum
-├── proto/                          # Protocol Buffer definitions
-│   ├── doctor.proto                # Doctor service contract
-│   ├── doctor.pb.go                # Generated stubs (committed)
-│   └── doctor_grpc.pb.go           # Generated gRPC stubs (committed)
+
+---
+
+## Migrations
+ 
+Migration files live in `migrations/`:
+ 
+```
+migrations/
+├── 000001_create_doctors.up.sql
+└── 000001_create_doctors.down.sql
+```
+
+## Database Schema
+ 
+Managed exclusively through migration files:
+ 
+```sql
+CREATE TABLE doctors (
+  id             TEXT        PRIMARY KEY,
+  full_name      TEXT        NOT NULL,
+  specialization TEXT        NOT NULL DEFAULT '',
+  email          TEXT        NOT NULL UNIQUE,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+ 
+---
+ 
+## Project Structure
+ 
+```
+doctor-service/
+├── main.go
+├── .env.example
+├── Dockerfile
+├── go.mod
 ├── internal/
-│   ├── model/
-│   │   └── doctor.go               # Domain model (unchanged from A1)
-│   ├── repository/
-│   │   ├── repository.go           # Storage interface
-│   │   └── errors.go               # Repository errors
-│   ├── use-case/
-│   │   ├── doctror_use_case.go     # Business logic (unchanged from A1)
-│   │   └── errors.go               # Use-case errors
+│   ├── app/           # Wire-up: DB, NATS, repo, use-case, gRPC server
+│   ├── config/        # Config + DB connection pool
+│   ├── event/         # EventPublisher interface + NATS implementation
+│   ├── model/         # Doctor, DoctorCreated event models
+│   ├── repository/    # PostgreSQL DoctorRepository
 │   ├── transport/
-│   │   ├── grpc/
-│   │   │   └── server.go           # gRPC server handlers (REPLACES http/)
-│   │   └── http/                   # REMOVED (replaced by grpc/)
-│   └── app/
-│       └── app.go                  # Application setup (gRPC server instead of Gin)
-└── README.md                       # This file
+│   │   └── grpc/      # gRPC handler + error mapping
+│   └── use-case/      # Business logic
+├── migrations/
+│   ├── 000001_create_doctors.up.sql
+│   └── 000001_create_doctors.down.sql
+└── proto/
+    ├── doctor.proto
+    ├── doctor.pb.go
+    └── doctor_grpc.pb.go
 ```
-
-### Dependency Flow (Clean Architecture)
-
-```
-gRPC Handler
-    ↓
-UseCase (Business Logic)
-    ↓
-Repository (In-Memory Storage)
-```
-
-**Rules:**
-- gRPC handler unmarshal proto messages, calls use case, returns proto responses
-- Use case contains all business logic; imports NO protobuf types
-- Repository handles storage only
-- Mapping between proto messages and domain models happens ONLY in the gRPC layer
-
-
-
+ 
 ---
-
-## 6. Installing and Regenerating Proto Stubs
-
-### Prerequisites
-
-1. **Install protoc** (Protocol Buffer Compiler)
-   - Windows: Download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases) and add to PATH
-
-2. **Install Go gRPC plugins**
-   ```bash
-   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-   ```
-
-### Regenerate Stubs
-
-From the `aitu-ap2-asik1-doctor-service/` directory:
-
-```bash
-protoc --go_out=. --go-grpc_out=. proto/doctor.proto
-```
-
-
----
-
-## 7. Running the Doctor Service
-
-
-### Startup
-
-```bash
-cd aitu-ap2-asik1-doctor-service
-go run main.go
-```
-
-**gRPC Port:** `localhost:50051`
-
-The service should be started **before** the Appointment Service because Appointment Service will connect to it during startup or on first request.
+ 
+## Graceful Shutdown
+ 
+The service handles `SIGINT` and `SIGTERM`. On shutdown it:
+1. Drains the gRPC server (waits for in-flight RPCs).
+2. Closes the NATS connection.
+3. Closes the database connection pool.
+4. Exits with code 0.
