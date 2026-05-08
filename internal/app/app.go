@@ -7,13 +7,16 @@ import (
 	"net"
 	"os"
 
+	"github.com/Aiya594/doctor-service/internal/cache"
 	"github.com/Aiya594/doctor-service/internal/config"
 	natspub "github.com/Aiya594/doctor-service/internal/event"
+	"github.com/Aiya594/doctor-service/internal/middleware"
 	"github.com/Aiya594/doctor-service/internal/repository"
 	grpcDoc "github.com/Aiya594/doctor-service/internal/transport/grpc"
 	usecase "github.com/Aiya594/doctor-service/internal/use-case"
 	"github.com/Aiya594/doctor-service/proto"
 	"github.com/golang-migrate/migrate/v4"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -21,10 +24,11 @@ import (
 )
 
 type App struct {
-	grpcServ *grpc.Server
-	logger   *slog.Logger
-	pub      *natspub.Publisher
-	db       *sql.DB
+	grpcServ    *grpc.Server
+	logger      *slog.Logger
+	pub         *natspub.Publisher
+	db          *sql.DB
+	redisClient *redis.Client
 }
 
 func NewApp() (*App, error) {
@@ -44,11 +48,22 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
+	redisClient := cache.NewRedisClient(logger)
+	var cacheRepo cache.CacheRepository
+	if redisClient != nil {
+		cacheRepo = cache.NewRedisCacheRepository(redisClient, logger)
+	} else {
+		cacheRepo = cache.NewNoop()
+	}
+
 	repo := repository.NewDoctorRepository(db)
-	uc := usecase.NewDoctorUseCase(repo, logger, publisher)
+	uc := usecase.NewDoctorUseCase(repo, logger, publisher, cacheRepo)
 	handler := grpcDoc.NewDoctorServer(uc, logger)
 
-	grpcServer := grpc.NewServer()
+	rateLimiter := middleware.RateLimiterInterceptor(redisClient, logger)
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(rateLimiter),
+	)
 	proto.RegisterDoctorServiceServer(grpcServer, handler)
 
 	return &App{
