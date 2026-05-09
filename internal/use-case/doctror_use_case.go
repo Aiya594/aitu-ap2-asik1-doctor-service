@@ -40,7 +40,6 @@ func NewDoctorUseCase(repo repository.DoctorRepository, logger *slog.Logger, pub
 }
 
 func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (string, error) {
-
 	fullName = strings.TrimSpace(fullName)
 	email = strings.ToLower(strings.TrimSpace(email))
 	specialization = strings.ToLower(strings.TrimSpace(specialization))
@@ -52,21 +51,18 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 	}
 
 	exists := d.repo.ExistsByEmail(email)
-
 	if exists {
 		d.logger.Error("failed create a doctor", "error", ErrAlreadyExists, "email", email)
 		return "", ErrAlreadyExists
 	}
 
 	id := uuid.New().String()
-
 	doctor := &model.Doctor{
 		ID:             id,
 		FullName:       fullName,
 		Email:          email,
 		Specialization: specialization,
 	}
-
 	createdAt := time.Now()
 
 	err := d.repo.Create(doctor, createdAt)
@@ -84,7 +80,6 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 	}
 
 	eventType := model.DoctorCreatedEventName
-
 	event := model.DoctorCreated{
 		EventType:      eventType,
 		OccurredAt:     createdAt,
@@ -93,13 +88,11 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 		Specialization: specialization,
 		Email:          email,
 	}
-
 	data, err := json.Marshal(event)
 	if err != nil {
 		d.logger.Error("couldnt marshal event", "error", err)
 		return id, err
 	}
-
 	err = d.publisher.Publish(eventType, data)
 	if err != nil {
 		d.logger.Error("couldnt publish event", "error", err)
@@ -111,7 +104,6 @@ func (d *DoctorUsecaseImpl) CreateDoc(fullName, email, specialization string) (s
 
 func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {
 	id = strings.TrimSpace(id)
-
 	if id == "" {
 		d.logger.Error("failed to get doctor", "error", ErrInvalidFields, "id", id)
 		return nil, ErrInvalidFields
@@ -141,7 +133,6 @@ func (d *DoctorUsecaseImpl) GetDocbyID(id string) (*model.Doctor, error) {
 		d.logger.Error("cache write failed", "error", cerr, "id", id)
 	}
 	return doctor, nil
-
 }
 
 func (d *DoctorUsecaseImpl) ListDoctors() ([]*model.Doctor, error) {

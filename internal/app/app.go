@@ -32,7 +32,6 @@ type App struct {
 }
 
 func NewApp() (*App, error) {
-
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	cfg := config.NewConfig()
 
@@ -48,6 +47,7 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
+	// Redis — optional; if unavailable, NoopCache is used
 	redisClient := cache.NewRedisClient(logger)
 	var cacheRepo cache.CacheRepository
 	if redisClient != nil {
@@ -67,10 +67,11 @@ func NewApp() (*App, error) {
 	proto.RegisterDoctorServiceServer(grpcServer, handler)
 
 	return &App{
-		grpcServ: grpcServer,
-		logger:   logger,
-		pub:      publisher,
-		db:       db,
+		grpcServ:    grpcServer,
+		logger:      logger,
+		pub:         publisher,
+		db:          db,
+		redisClient: redisClient,
 	}, nil
 }
 
@@ -79,7 +80,6 @@ func (a *App) RunServer(port string) error {
 	if err != nil {
 		return err
 	}
-
 	a.logger.Info("gRPC server starting", "port", port)
 	return a.grpcServ.Serve(lis)
 }
@@ -87,6 +87,9 @@ func (a *App) RunServer(port string) error {
 func (a *App) Close() {
 	a.pub.Close()
 	a.db.Close()
+	if a.redisClient != nil {
+		a.redisClient.Close()
+	}
 }
 
 func (a *App) Stop() {
@@ -95,21 +98,15 @@ func (a *App) Stop() {
 
 func runMigrations(dbURL string) {
 	if dbURL == "" {
-		log.Fatal("DOC_DATABASE_URL is not set")
+		log.Fatal("DATABASE_URL is not set")
 	}
-
-	m, err := migrate.New(
-		"file://migrations",
-		dbURL,
-	)
+	m, err := migrate.New("file://migrations", dbURL)
 	if err != nil {
 		log.Fatal("migration init error:", err)
 	}
-
 	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
 		log.Fatal("migration failed:", err)
 	}
-
 	log.Println("migrations applied successfully")
 }
